@@ -57,12 +57,11 @@ mmap_files = {
 }
 
 def exportRois(sima_path, contours):
-    ds = ImagingDataset.load(sima_path, contours)
+    ds = ImagingDataset.load(sima_path)
     im_shape = ds.frame_shape[:3]
-    rois = np.load(os.path.join('/data2/jack','rois.npz'))['rois']
     roi_list = []
     for roi in contours:
-        coords = contours['coordinates']
+        coords = roi['coordinates']
         coords = np.hstack((coords,np.zeros((coords.shape[0],1))))
         segment_boundaries = np.where(np.isnan(coords[:,0]))[0]
         polys = []
@@ -261,7 +260,7 @@ def main(argv):
         Cn=Cn, A=A.todense(), C=C, b=b, f=f, YrA=YrA, sn=sn, d1=d1, d2=d2,
         idx_components=idx_components, idx_components_bad=idx_components_bad)
 
-    crd = plot_contours(A.tocsc(), Cn, thr=0.9,swap_dim=True)
+    crd = plot_contours(A.tocsc(), Cn, thr=0.9)
 
     #%% visualize components
     pl.figure()
@@ -288,7 +287,7 @@ def main(argv):
     for log_file in log_files:
         os.remove(log_file)
 
-    export_rois(fname, crd)
+    exportRois(fname, crd)
 
 if __name__ == '__main__':
     main(sys.argv[1:])
