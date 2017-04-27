@@ -6,6 +6,8 @@ RUN apt-get install -y git wget
 RUN apt-get install bzip2
 RUN apt-get install -y gcc
 RUN apt-get install -y libgtk2.0-0
+RUN apt-get install -y vim
+RUN apt-get install -y libgeos-dev
 RUN export MINICONDA=$HOME/miniconda
 RUN export PATH="$MINICONDA/bin:$PATH"
 RUN hash -r
@@ -32,6 +34,7 @@ RUN apt-get install -y libsm6 libxrender1
 RUN conda install pyqt=4.11.4
 RUN python setup.py install
 RUN python setup.py build_ext -i
+RUN pip install sima
 
 # RUN nosetests
 

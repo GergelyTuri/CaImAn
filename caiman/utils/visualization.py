@@ -22,6 +22,9 @@ from ..base.rois import com
 from scipy.ndimage.measurements import center_of_mass
 import matplotlib.cm as cm
 import matplotlib as mpl
+
+from matplotlib.backends.backend_pdf import PdfPages
+
 try:
     import bokeh
     import bokeh.plotting as bpl
@@ -32,6 +35,152 @@ except:
 
 from ..summary_images import local_correlations
 
+#TODO: docs
+def pdf_patches_bar(filename, Yr, A, C, b, f, d1, d2, YrA=None, secs=1, img=None):
+    """view spatial and temporal components interactively
+
+     Parameters
+     -----------
+     Yr:    np.ndarray
+            movie in format pixels (d) x frames (T)
+     A:     sparse matrix
+                matrix of spatial components (d x K)
+     C:     np.ndarray
+                matrix of temporal components (K x T)
+     b:     np.ndarray
+                spatial background (vector of length d)
+
+     f:     np.ndarray
+                temporal background (vector of length T)
+     d1,d2: np.ndarray
+                frame dimensions
+     YrA:   np.ndarray
+                 ROI filtered residual as it is given from update_temporal_components
+                 If not given, then it is computed (K x T)
+
+     img:   np.ndarray
+                background image for contour plotting. Default is the image of all spatial components (d1 x d2)
+
+    """
+
+    pp = PdfPages(filename)
+    pl.ion()
+    nr, T = C.shape
+    nb = f.shape[0]
+    A2 = A.copy()
+    A2.data **= 2
+    nA2 = np.sqrt(np.array(A2.sum(axis=0))).squeeze()
+    #A = A*spdiags(1/nA2,0,nr,nr)
+    #C = spdiags(nA2,0,nr,nr)*C
+    #b = np.squeeze(b)
+    #f = np.squeeze(f)
+    if YrA is None:
+        Y_r = np.array(A.T * np.matrix(Yr) - (A.T * np.matrix(b[:, np.newaxis])) * np.matrix(
+            f[np.newaxis]) - (A.T.dot(A)) * np.matrix(C) + C)
+    else:
+        Y_r = YrA + C
+
+    A = A * spdiags(old_div(1, nA2), 0, nr, nr)
+    A = A.todense()
+    imgs = np.reshape(np.array(A), (d1, d2, nr), order='F')
+    if img is None:
+        img = np.mean(imgs[:, :, :-1], axis=-1)
+
+    bkgrnd = np.reshape(b, (d1, d2) + (nb,), order='F')
+    for i in xrange(nr):
+        fig = pl.figure(figsize=(10, 10))
+
+        axcomp = pl.axes([0.05, 0.05, 0.9, 0.03])
+
+        ax1 = pl.axes([0.05, 0.55, 0.4, 0.4])
+        ax3 = pl.axes([0.55, 0.55, 0.4, 0.4])
+        ax2 = pl.axes([0.05, 0.1, 0.9, 0.4])
+
+        vmax = np.percentile(img, 98)
+
+        print('plotting {}'.format(i))
+        ax1.cla()
+        imgtmp = imgs[:, :, i]
+        ax1.imshow(imgtmp, interpolation='None', cmap=pl.cm.gray)
+        ax1.set_title('Spatial component ' + str(i + 1))
+        ax1.axis('off')
+
+        ax2.cla()
+        ax2.plot(np.arange(T), np.squeeze(np.array(Y_r[i, :])), 'c', linewidth=3)
+        ax2.plot(np.arange(T), np.squeeze(np.array(C[i, :])), 'r', linewidth=2)
+        ax2.set_title('Temporal component ' + str(i + 1))
+        ax2.legend(labels=['Filtered raw data', 'Inferred trace'])
+
+        ax3.cla()
+        ax3.imshow(img, interpolation='None', cmap=pl.cm.gray, vmax=vmax)
+        imgtmp2 = imgtmp.copy()
+        imgtmp2[imgtmp2 == 0] = np.nan
+        ax3.imshow(imgtmp2, interpolation='None', alpha=0.5, cmap=pl.cm.hot)
+        ax3.axis('off')
+
+        pl.savefig(pp, format='pdf')
+        pl.close(fig)
+
+    pp.close()
+
+#TODO: update docs
+def pdf_patches(filename, Yr, A, C, b, f, d1, d2, YrA=None):
+    """view spatial and temporal components
+
+     Parameters
+     -----------
+     Yr:        np.ndarray
+            movie in format pixels (d) x frames (T)
+     A:     sparse matrix
+                matrix of spatial components (d x K)
+     C:     np.ndarray
+                matrix of temporal components (K x T)
+     b:     np.ndarray
+                spatial background (vector of length d)
+
+     f:     np.ndarray
+                temporal background (vector of length T)
+     d1,d2: np.ndarray
+                frame dimensions
+     YrA:   np.ndarray
+                 ROI filtered residual as it is given from update_temporal_components
+                 If not given, then it is computed (K x T)
+                number of seconds in between component scrolling. secs=0 means interactive (click to scroll)
+     imgs:  np.ndarray
+                background image for contour plotting. Default is the image of all spatial components (d1 x d2)
+
+    """
+    pp = PdfPages(filename)
+    pl.ion()
+    nr, T = C.shape
+    nb = f.shape[0]
+    A2 = A.copy()
+    A2.data **= 2
+    nA2 = np.sqrt(np.array(A2.sum(axis=0))).squeeze()
+
+    if YrA is None:
+        Y_r = np.array(A.T * np.matrix(Yr) - (A.T * np.matrix(b[:, np.newaxis])) * np.matrix(
+            f[np.newaxis]) - (A.T.dot(A)) * np.matrix(C) + C)
+    else:
+        Y_r = YrA + C
+
+    A = A.todense()
+    bkgrnd = np.reshape(b, (d1, d2) + (nb,), order='F')
+    for i in xrange(nr):
+        fig = pl.figure()
+        ax1 = fig.add_subplot(2, 1, 1)
+        pl.imshow(np.reshape(old_div(np.array(A[:, i]), nA2[i]),
+                             (d1, d2), order='F'), interpolation='None')
+        ax1.set_title('Spatial component ' + str(i + 1))
+        ax2 = fig.add_subplot(2, 1, 2)
+        pl.plot(np.arange(T), np.squeeze(np.array(Y_r[i, :])), 'c', linewidth=3)
+        pl.plot(np.arange(T), np.squeeze(np.array(C[i, :])), 'r', linewidth=2)
+        ax2.set_title('Temporal component ' + str(i + 1))
+        ax2.legend(labels=['Filtered raw data', 'Inferred trace'])
+        pl.savefig(pp, format='pdf')
+        pl.close(fig)
+
+    pp.close()
 
 #%%
 def view_patches(Yr, A, C, b, f, d1, d2, YrA=None, secs=1):
